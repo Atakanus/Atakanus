@@ -37,7 +37,7 @@ def hepsiburada_fiyat_bul(urun_adi):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Merhaba! Ürün adını yaz, en ucuz fiyatı bulayım.\nÖrnek: iPhone 16 Pro Max"
+        "Merhaba! Ürün adını yaz, Trendyol ve Hepsiburada'dan en ucuz fiyatı bulayım.\nÖrnek: airfryer"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -51,11 +51,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mesaj = f"{urun} fiyatları:\n"
     if trendyol_fiyat:
-        mesaj += f"- Trendyol: {trendyol_fiyat} TL\nLink: {trendyol_link}\n"
+        mesaj += f"- Trendyol: {trendyol_fiyat}\nLink: {trendyol_link}\n"
     if hepsi_fiyat:
-        mesaj += f"- Hepsiburada: {hepsi_fiyat} TL\nLink: {hepsi_link}\n"
+        mesaj += f"- Hepsiburada: {hepsi_fiyat}\nLink: {hepsi_link}\n"
 
-    # En ucuzu bul (fiyatları integer'a çevirmeye çalış)
     fiyatlar = {}
     try:
         fiyatlar["Trendyol"] = int(''.join(filter(str.isdigit, trendyol_fiyat)))
