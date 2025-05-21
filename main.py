@@ -3,13 +3,16 @@ from telegram import Update
 import requests
 from bs4 import BeautifulSoup
 
-# Telegram Bot Token'ını buraya koy:
 BOT_TOKEN = "7922168827:AAFxAJurX5SLlZI1pua_FHQWgqrLSe9DHk4"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+}
 
 def trendyol_fiyat_bul(urun_adi):
     url = f"https://www.trendyol.com/sr?q={urun_adi.replace(' ', '+')}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(url, headers=headers)
+    res = requests.get(url, headers=HEADERS)
     soup = BeautifulSoup(res.text, "html.parser")
     urunler = soup.find_all("div", {"class": "p-card-wrppr"})
     if not urunler:
@@ -24,8 +27,7 @@ def trendyol_fiyat_bul(urun_adi):
 
 def hepsiburada_fiyat_bul(urun_adi):
     url = f"https://www.hepsiburada.com/ara?q={urun_adi.replace(' ', '+')}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(url, headers=headers)
+    res = requests.get(url, headers=HEADERS)
     soup = BeautifulSoup(res.text, "html.parser")
     urunler = soup.find_all("li", {"class": "search-item"})
     if not urunler:
@@ -35,6 +37,15 @@ def hepsiburada_fiyat_bul(urun_adi):
     link_tag = urunler[0].find("a", href=True)
     link = "https://www.hepsiburada.com" + link_tag['href'] if link_tag else None
     return fiyat, link
+
+def fiyat_to_int(fiyat):
+    if not fiyat:
+        return None
+    temiz_fiyat = ''.join(c for c in fiyat if c.isdigit())
+    try:
+        return int(temiz_fiyat)
+    except:
+        return None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -57,14 +68,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mesaj += f"- Hepsiburada: {hepsi_fiyat} TL\nLink: {hepsi_link}\n"
 
     fiyatlar = {}
-    try:
-        fiyatlar["Trendyol"] = int(''.join(filter(str.isdigit, trendyol_fiyat)))
-    except:
-        pass
-    try:
-        fiyatlar["Hepsiburada"] = int(''.join(filter(str.isdigit, hepsi_fiyat)))
-    except:
-        pass
+    t_fiyat_int = fiyat_to_int(trendyol_fiyat)
+    h_fiyat_int = fiyat_to_int(hepsi_fiyat)
+    if t_fiyat_int is not None:
+        fiyatlar["Trendyol"] = t_fiyat_int
+    if h_fiyat_int is not None:
+        fiyatlar["Hepsiburada"] = h_fiyat_int
 
     if fiyatlar:
         en_ucuz = min(fiyatlar, key=fiyatlar.get)
