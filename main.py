@@ -1,51 +1,83 @@
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram import Update
+import requests
+from bs4 import BeautifulSoup
 
 TOKEN = "7922168827:AAFxAJurX5SLlZI1pua_FHQWgqrLSe9DHk4"
 
-fake_prices = {
-    "iphone": {"Trendyol": 72000, "Hepsiburada": 71000, "Amazon": 73000},
-    "samsung televizyon": {"Trendyol": 10000, "Hepsiburada": 9500, "Amazon": 10200},
-    "airfryer": {"Trendyol": 1250, "Hepsiburada": 1199, "Amazon": 1300},
-}
+def trendyol_fiyat_bul(urun_adi):
+    url = f"https://www.trendyol.com/sr?q={urun_adi.replace(' ', '+')}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
+    urunler = soup.find_all("div", {"class": "p-card-wrppr"})
+    if not urunler:
+        return None, None
+    fiyat_tag = urunler[0].find("div", {"class": "prc-box-dscntd"})
+    if not fiyat_tag:
+        fiyat_tag = urunler[0].find("div", {"class": "prc-box-sllng"})
+    fiyat = fiyat_tag.text.strip() if fiyat_tag else "Fiyat yok"
+    link_tag = urunler[0].find("a", href=True)
+    link = "https://www.trendyol.com" + link_tag['href'] if link_tag else "Link yok"
+    return fiyat, link
 
-def find_cheapest(prices):
-    cheapest_store = min(prices, key=prices.get)
-    cheapest_price = prices[cheapest_store]
-    return cheapest_store, cheapest_price
+def hepsiburada_fiyat_bul(urun_adi):
+    url = f"https://www.hepsiburada.com/ara?q={urun_adi.replace(' ', '+')}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
+    urunler = soup.find_all("li", {"class": "search-item"})
+    if not urunler:
+        return None, None
+    fiyat_tag = urunler[0].find("span", {"class": "price-value"})
+    fiyat = fiyat_tag.text.strip() if fiyat_tag else "Fiyat yok"
+    link_tag = urunler[0].find("a", href=True)
+    link = "https://www.hepsiburada.com" + link_tag['href'] if link_tag else "Link yok"
+    return fiyat, link
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Merhaba! Ürün adını yaz, en ucuz fiyatı bulayım.\nÖrnek: iPhone, Samsung Televizyon, Airfryer"
+        "Merhaba! Ürün adını yaz, en ucuz fiyatı bulayım.\nÖrnek: iPhone 16 Pro Max"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text.lower()
+    urun = update.message.text.strip()
+    trendyol_fiyat, trendyol_link = trendyol_fiyat_bul(urun)
+    hepsi_fiyat, hepsi_link = hepsiburada_fiyat_bul(urun)
 
-    found = False
-    for key in fake_prices.keys():
-        if key in user_text:
-            prices = fake_prices[key]
-            cheapest_store, cheapest_price = find_cheapest(prices)
+    if not trendyol_fiyat and not hepsi_fiyat:
+        await update.message.reply_text("Üzgünüm, ürün bulunamadı.")
+        return
 
-            response = f"{key.title()} fiyatları:\n"
-            for store, price in prices.items():
-                response += f"- {store}: {price} TL\n"
-            response += f"→ En ucuz: {cheapest_store} ({cheapest_price} TL) (Satın Al)"
+    mesaj = f"{urun} fiyatları:\n"
+    if trendyol_fiyat:
+        mesaj += f"- Trendyol: {trendyol_fiyat} TL\nLink: {trendyol_link}\n"
+    if hepsi_fiyat:
+        mesaj += f"- Hepsiburada: {hepsi_fiyat} TL\nLink: {hepsi_link}\n"
 
-            await update.message.reply_text(response)
-            found = True
-            break
+    # En ucuzu bul (fiyatları integer'a çevirmeye çalış)
+    fiyatlar = {}
+    try:
+        fiyatlar["Trendyol"] = int(''.join(filter(str.isdigit, trendyol_fiyat)))
+    except:
+        pass
+    try:
+        fiyatlar["Hepsiburada"] = int(''.join(filter(str.isdigit, hepsi_fiyat)))
+    except:
+        pass
 
-    if not found:
-        await update.message.reply_text("Üzgünüm, bu ürün için veri yok. Başka ürün deneyin.")
+    if fiyatlar:
+        en_ucuz = min(fiyatlar, key=fiyatlar.get)
+        mesaj += f"\n→ En ucuz: {en_ucuz} ({fiyatlar[en_ucuz]} TL)"
+    else:
+        mesaj += "\n→ En ucuz fiyat bilgisi bulunamadı."
+
+    await update.message.reply_text(mesaj)
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-
     app.run_polling()
 
 if __name__ == "__main__":
